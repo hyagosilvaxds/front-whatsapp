@@ -74,14 +74,31 @@ export const getToken = (): string | null => {
   
   // Se não encontrou, tentar via document.cookie diretamente
   if (!token) {
-    const allCookies = document.cookie;
-    const tokenMatch = allCookies.match(/jwtToken=([^;]+)/);
-    if (tokenMatch) {
-      token = decodeURIComponent(tokenMatch[1]);
+    token = getTokenFromDocument();
+  }
+  
+  // Se ainda não encontrou e estamos em rede local, tentar localStorage como fallback
+  if (!token && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+    console.log('🔄 Token não encontrado em cookies, tentando localStorage...');
+    token = localStorage.getItem("jwtToken");
+    if (token) {
+      console.log('✅ Token encontrado no localStorage!');
     }
   }
   
   return token || null;
+};
+
+// Função para salvar no localStorage como fallback
+const saveTokenToLocalStorage = (token: string) => {
+  try {
+    localStorage.setItem("jwtToken", token);
+    console.log('💾 Token salvo no localStorage como fallback');
+    return true;
+  } catch (error) {
+    console.error('❌ Erro ao salvar no localStorage:', error);
+    return false;
+  }
 };
 
 api.interceptors.request.use((config) => {
@@ -155,28 +172,47 @@ export const saveToken = (token: string) => {
     const expires = new Date();
     expires.setDate(expires.getDate() + 7); // 7 dias
     
-    const cookieString = `jwtToken=${token}; expires=${expires.toUTCString()}; path=/; SameSite=Lax`;
+    // Primeiro tentar com SameSite=None para contornar restrições
+    let cookieString = `jwtToken=${token}; expires=${expires.toUTCString()}; path=/; SameSite=None`;
     document.cookie = cookieString;
-    
-    console.log('📝 Cookie string:', cookieString);
+    console.log('📝 Cookie string (SameSite=None):', cookieString);
     
     // Verificar se foi salvo
-    let savedToken = Cookies.get("jwtToken");
-    console.log('✅ Primeira verificação:', savedToken ? `${savedToken.substring(0, 20)}...` : 'FALHOU');
+    let savedToken = getTokenFromDocument();
+    console.log('✅ Primeira verificação (SameSite=None):', savedToken ? `${savedToken.substring(0, 20)}...` : 'FALHOU');
     
-    // Se ainda não funcionou, tentar método ainda mais direto
+    // Se não funcionou, tentar sem SameSite
     if (!savedToken) {
-      console.log('⚠️ Método manual falhou, tentando direto no document.cookie...');
-      document.cookie = `jwtToken=${token}; path=/`;
+      console.log('⚠️ SameSite=None falhou, tentando sem SameSite...');
+      cookieString = `jwtToken=${token}; expires=${expires.toUTCString()}; path=/`;
+      document.cookie = cookieString;
+      console.log('📝 Cookie string (sem SameSite):', cookieString);
       
-      // Verificar via document.cookie diretamente
-      const allCookies = document.cookie;
-      const tokenMatch = allCookies.match(/jwtToken=([^;]+)/);
-      if (tokenMatch) {
-        console.log('✅ Token encontrado via document.cookie:', tokenMatch[1].substring(0, 20) + '...');
-      } else {
-        console.log('❌ Token não encontrado mesmo via document.cookie');
-        console.log('📋 Todos os cookies:', allCookies);
+      savedToken = getTokenFromDocument();
+      console.log('✅ Segunda verificação (sem SameSite):', savedToken ? `${savedToken.substring(0, 20)}...` : 'FALHOU');
+    }
+    
+    // Se ainda não funcionou, tentar método mais agressivo
+    if (!savedToken) {
+      console.log('⚠️ Métodos anteriores falharam, tentando método mais agressivo...');
+      
+      // Tentar diferentes combinações
+      const attempts = [
+        `jwtToken=${token}; path=/; domain=${hostname}`,
+        `jwtToken=${token}; path=/`,
+        `jwtToken=${token}`,
+        `jwtToken=${encodeURIComponent(token)}; path=/`
+      ];
+      
+      for (let i = 0; i < attempts.length; i++) {
+        document.cookie = attempts[i];
+        console.log(`� Tentativa ${i + 1}:`, attempts[i]);
+        
+        const testToken = getTokenFromDocument();
+        if (testToken) {
+          console.log(`✅ Sucesso na tentativa ${i + 1}!`);
+          break;
+        }
       }
     }
     
@@ -191,8 +227,36 @@ export const saveToken = (token: string) => {
   }
   
   // Verificação final
-  const finalToken = Cookies.get("jwtToken");
+  const finalToken = getToken();
   console.log('🏁 Verificação final:', finalToken ? `${finalToken.substring(0, 20)}...` : 'FALHOU');
+  
+  // Se ainda falhou com cookies, tentar localStorage como último recurso
+  if (!finalToken && hostname !== "localhost" && hostname !== "127.0.0.1") {
+    console.log('🆘 Cookies falharam completamente, usando localStorage como último recurso...');
+    saveTokenToLocalStorage(token);
+    
+    const localStorageToken = getToken();
+    console.log('🏁 Verificação final com localStorage:', localStorageToken ? `${localStorageToken.substring(0, 20)}...` : 'FALHOU COMPLETAMENTE');
+  }
+  
+  // Se ainda falhou, mostrar informações de debug do navegador
+  if (!getToken()) {
+    console.log('🔍 Debug do navegador:');
+    console.log('- User Agent:', navigator.userAgent);
+    console.log('- Protocol:', window.location.protocol);
+    console.log('- É HTTPS?:', window.location.protocol === 'https:');
+    console.log('- Cookies habilitados?:', navigator.cookieEnabled);
+    console.log('- LocalStorage disponível?:', typeof Storage !== "undefined");
+  }
+};
+
+// Função auxiliar para ler token diretamente do document.cookie
+const getTokenFromDocument = (): string | null => {
+  if (typeof window === "undefined") return null;
+  
+  const allCookies = document.cookie;
+  const tokenMatch = allCookies.match(/jwtToken=([^;]+)/);
+  return tokenMatch ? decodeURIComponent(tokenMatch[1]) : null;
 };
 
 // Função para remover token
@@ -206,10 +270,18 @@ export const removeToken = () => {
   if (typeof window !== "undefined") {
     // Método adicional para limpar cookie via document.cookie
     document.cookie = "jwtToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    
+    // Limpar localStorage também
+    try {
+      localStorage.removeItem("jwtToken");
+      console.log('🗑️ Token removido do localStorage');
+    } catch (error) {
+      console.error('❌ Erro ao remover do localStorage:', error);
+    }
   }
   
   // Verificar se foi removido
-  const remainingToken = Cookies.get("jwtToken");
+  const remainingToken = getToken();
   console.log('🗑️ Token removido:', remainingToken ? 'FALHOU' : 'SUCESSO');
 };
 
