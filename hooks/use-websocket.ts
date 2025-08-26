@@ -25,7 +25,7 @@ interface WebSocketEvents {
 export function useWebSocket({ 
   organizationId, 
   enabled = true, 
-  url = 'ws://localhost:4000' 
+  url = 'ws://10.10.10.39:4000' 
 }: UseWebSocketProps = {}) {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);

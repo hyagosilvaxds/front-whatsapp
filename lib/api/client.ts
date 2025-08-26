@@ -3,7 +3,7 @@ import Cookies from "js-cookie";
 import { jwtDecode } from "jwt-decode";
 
 const api = axios.create({
-  baseURL: "http://localhost:4000",
+  baseURL: "http://10.10.10.39:4000",
   timeout: 600000,
   headers: {
     "Content-Type": "application/json",
