@@ -173,20 +173,30 @@ export const updateUserData = async (userData: UpdateUserData) => {
 
 export const isAuthenticated = (): boolean => {
     const token = Cookies.get("jwtToken");
-    if (!token) return false;
+    console.log('🔍 Verificando autenticação - Token encontrado:', token ? `${token.substring(0, 20)}...` : 'NENHUM');
+    
+    if (!token) {
+        console.log('❌ Nenhum token encontrado');
+        return false;
+    }
     
     try {
         const decoded = jwtDecode<DecodedToken>(token);
         const currentTime = Date.now() / 1000;
         
+        console.log('🕒 Token expira em:', new Date(decoded.exp * 1000));
+        console.log('🕒 Hora atual:', new Date());
+        
         if (decoded.exp && decoded.exp < currentTime) {
+            console.log('⏰ Token expirado, removendo dados de auth');
             clearAuthData();
             return false;
         }
         
+        console.log('✅ Token válido');
         return true;
     } catch (error) {
-        console.error('Erro ao verificar autenticação:', error);
+        console.error('❌ Erro ao verificar autenticação:', error);
         clearAuthData();
         return false;
     }
