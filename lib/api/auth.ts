@@ -1,6 +1,7 @@
 import api from './client';
 import { jwtDecode } from 'jwt-decode';
 import Cookies from "js-cookie";
+import { saveToken, removeToken } from './client';
 import { 
     UserData, 
     LoginResponse, 
@@ -30,12 +31,12 @@ export async function login({ email, password }: { email: string; password: stri
         }
 
         // Salvar token e dados do usuário
-        Cookies.set("jwtToken", access_token, { expires: 7 });
-        Cookies.set("user", JSON.stringify(user), { expires: 7 });
+        saveToken(access_token);
+        Cookies.set("user", JSON.stringify(user), { expires: 7, secure: false, sameSite: 'lax' });
 
         // Decodificar token para extrair informações
         const decodedToken = jwtDecode<DecodedToken>(access_token);
-        Cookies.set("userId", decodedToken.id, { expires: 7 });
+        Cookies.set("userId", decodedToken.id, { expires: 7, secure: false, sameSite: 'lax' });
 
         // Log dos dados salvos para debug
         console.log("=== DADOS SALVOS NO LOGIN ===");
@@ -101,7 +102,7 @@ export const clearUserDataCache = () => {
 
 // Função auxiliar para limpar dados de autenticação
 const clearAuthData = () => {
-    Cookies.remove("jwtToken");
+    removeToken();
     Cookies.remove("user");
     Cookies.remove("userId");
     Cookies.remove("USER_ROLE");
@@ -139,7 +140,7 @@ export const getUserData = async (forceRefresh = false): Promise<UserData> => {
         };
         
         // Atualizar dados do usuário no cookie
-        Cookies.set("user", JSON.stringify(response.data), { expires: 7 });
+        Cookies.set("user", JSON.stringify(response.data), { expires: 7, secure: false, sameSite: 'lax' });
         console.log('💾 Dados atualizados no cookie e cache');
         
         return response.data; 
@@ -160,7 +161,7 @@ export const updateUserData = async (userData: UpdateUserData) => {
         const currentUser = getUserFromToken();
         if (currentUser) {
             const updatedUser = { ...currentUser, ...userData };
-            Cookies.set("user", JSON.stringify(updatedUser), { expires: 7 });
+            Cookies.set("user", JSON.stringify(updatedUser), { expires: 7, secure: false, sameSite: 'lax' });
         }
         
         return response.data;
@@ -295,7 +296,7 @@ export const savePermissionsToCookie = (permissions: Permission[]) => {
 export const saveRolesToCookie = (role: string | null, customRole: any | null) => {
     try {
         if (role) {
-            Cookies.set("USER_ROLE", role, { expires: 7 });
+            Cookies.set("USER_ROLE", role, { expires: 7, secure: false, sameSite: 'lax' });
         }
         console.log('Role salvo no cookie:', { role });
     } catch (error) {
