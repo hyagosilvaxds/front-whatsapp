@@ -10,7 +10,6 @@ import {
   updateUserData,
   debugAuthData
 } from '@/lib/api/auth'
-import { debugCookies } from '@/lib/api/client'
 
 interface AuthContextType {
   user: UserData | null
@@ -41,10 +40,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       try {
         console.log('🔍 Verificação inicial de autenticação (AuthContext)');
-        
-        // Debug dos cookies
-        debugCookies();
-        
         if (checkIsAuthenticated()) {
           console.log('✅ Token válido encontrado, buscando dados do usuário...');
           // Na verificação inicial, usar cache se disponível (não forçar refresh)

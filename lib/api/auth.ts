@@ -1,7 +1,6 @@
 import api from './client';
 import { jwtDecode } from 'jwt-decode';
 import Cookies from "js-cookie";
-import { saveToken, removeToken, getToken } from './client';
 import { 
     UserData, 
     LoginResponse, 
@@ -31,18 +30,12 @@ export async function login({ email, password }: { email: string; password: stri
         }
 
         // Salvar token e dados do usuário
-        console.log("🔄 Salvando token de acesso...");
-        saveToken(access_token);
-        
-        // Verificar se o token foi salvo corretamente
-        const savedToken = Cookies.get("jwtToken");
-        console.log("✅ Verificação do token salvo:", savedToken ? `${savedToken.substring(0, 20)}...` : 'FALHOU');
-        
-        Cookies.set("user", JSON.stringify(user), { expires: 7, secure: false, sameSite: 'lax' });
+        Cookies.set("jwtToken", access_token, { expires: 7 });
+        Cookies.set("user", JSON.stringify(user), { expires: 7 });
 
         // Decodificar token para extrair informações
         const decodedToken = jwtDecode<DecodedToken>(access_token);
-        Cookies.set("userId", decodedToken.id, { expires: 7, secure: false, sameSite: 'lax' });
+        Cookies.set("userId", decodedToken.id, { expires: 7 });
 
         // Log dos dados salvos para debug
         console.log("=== DADOS SALVOS NO LOGIN ===");
@@ -108,7 +101,7 @@ export const clearUserDataCache = () => {
 
 // Função auxiliar para limpar dados de autenticação
 const clearAuthData = () => {
-    removeToken();
+    Cookies.remove("jwtToken");
     Cookies.remove("user");
     Cookies.remove("userId");
     Cookies.remove("USER_ROLE");
@@ -146,7 +139,7 @@ export const getUserData = async (forceRefresh = false): Promise<UserData> => {
         };
         
         // Atualizar dados do usuário no cookie
-        Cookies.set("user", JSON.stringify(response.data), { expires: 7, secure: false, sameSite: 'lax' });
+        Cookies.set("user", JSON.stringify(response.data), { expires: 7 });
         console.log('💾 Dados atualizados no cookie e cache');
         
         return response.data; 
@@ -167,7 +160,7 @@ export const updateUserData = async (userData: UpdateUserData) => {
         const currentUser = getUserFromToken();
         if (currentUser) {
             const updatedUser = { ...currentUser, ...userData };
-            Cookies.set("user", JSON.stringify(updatedUser), { expires: 7, secure: false, sameSite: 'lax' });
+            Cookies.set("user", JSON.stringify(updatedUser), { expires: 7 });
         }
         
         return response.data;
@@ -178,31 +171,21 @@ export const updateUserData = async (userData: UpdateUserData) => {
 };
 
 export const isAuthenticated = (): boolean => {
-    const token = getToken(); // Usar a função robusta
-    console.log('🔍 Verificando autenticação - Token encontrado:', token ? `${token.substring(0, 20)}...` : 'NENHUM');
-    
-    if (!token) {
-        console.log('❌ Nenhum token encontrado');
-        return false;
-    }
+    const token = Cookies.get("jwtToken");
+    if (!token) return false;
     
     try {
         const decoded = jwtDecode<DecodedToken>(token);
         const currentTime = Date.now() / 1000;
         
-        console.log('🕒 Token expira em:', new Date(decoded.exp * 1000));
-        console.log('🕒 Hora atual:', new Date());
-        
         if (decoded.exp && decoded.exp < currentTime) {
-            console.log('⏰ Token expirado, removendo dados de auth');
             clearAuthData();
             return false;
         }
         
-        console.log('✅ Token válido');
         return true;
     } catch (error) {
-        console.error('❌ Erro ao verificar autenticação:', error);
+        console.error('Erro ao verificar autenticação:', error);
         clearAuthData();
         return false;
     }
@@ -312,7 +295,7 @@ export const savePermissionsToCookie = (permissions: Permission[]) => {
 export const saveRolesToCookie = (role: string | null, customRole: any | null) => {
     try {
         if (role) {
-            Cookies.set("USER_ROLE", role, { expires: 7, secure: false, sameSite: 'lax' });
+            Cookies.set("USER_ROLE", role, { expires: 7 });
         }
         console.log('Role salvo no cookie:', { role });
     } catch (error) {
