@@ -1,7 +1,7 @@
 import api from './client';
 import { jwtDecode } from 'jwt-decode';
 import Cookies from "js-cookie";
-import { saveToken, removeToken } from './client';
+import { saveToken, removeToken, getToken } from './client';
 import { 
     UserData, 
     LoginResponse, 
@@ -178,7 +178,7 @@ export const updateUserData = async (userData: UpdateUserData) => {
 };
 
 export const isAuthenticated = (): boolean => {
-    const token = Cookies.get("jwtToken");
+    const token = getToken(); // Usar a função robusta
     console.log('🔍 Verificando autenticação - Token encontrado:', token ? `${token.substring(0, 20)}...` : 'NENHUM');
     
     if (!token) {

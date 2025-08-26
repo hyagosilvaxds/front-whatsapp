@@ -65,8 +65,27 @@ const api = axios.create({
   },
 });
 
+// Função auxiliar para ler token de forma mais robusta
+export const getToken = (): string | null => {
+  if (typeof window === "undefined") return null;
+  
+  // Tentar primeiro com js-cookie
+  let token = Cookies.get("jwtToken");
+  
+  // Se não encontrou, tentar via document.cookie diretamente
+  if (!token) {
+    const allCookies = document.cookie;
+    const tokenMatch = allCookies.match(/jwtToken=([^;]+)/);
+    if (tokenMatch) {
+      token = decodeURIComponent(tokenMatch[1]);
+    }
+  }
+  
+  return token || null;
+};
+
 api.interceptors.request.use((config) => {
-  const token = Cookies.get("jwtToken");
+  const token = getToken(); // Usar a função robusta
   console.log('🔐 Token encontrado:', token ? `${token.substring(0, 20)}...` : 'NENHUM');
   console.log('🎯 URL da requisição:', config.url);
   console.log('🌐 Base URL:', config.baseURL);
@@ -124,30 +143,45 @@ export const saveToken = (token: string) => {
   console.log('💾 Salvando token...');
   console.log('🌐 Hostname atual:', typeof window !== "undefined" ? window.location.hostname : 'SSR');
   
-  // Tentar salvar de forma mais direta para rede local
-  if (typeof window !== "undefined") {
-    const hostname = window.location.hostname;
+  if (typeof window === "undefined") return;
+  
+  const hostname = window.location.hostname;
+  
+  // Para rede local (IP), usar método manual mais confiável
+  if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+    console.log('🌐 Detectado rede local, usando método manual de cookie');
     
-    // Para rede local (IP), usar configurações mais simples
-    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
-      console.log('🌐 Detectado rede local, usando configurações específicas');
-      Cookies.set("jwtToken", token, {
-        expires: 7,
-        path: "/",
-        secure: false,
-        sameSite: 'lax'
-      });
-    } else {
-      // Para localhost
-      Cookies.set("jwtToken", token, {
-        expires: 7,
-        path: "/",
-        secure: false,
-        sameSite: 'lax'
-      });
+    // Método manual mais confiável para rede local
+    const expires = new Date();
+    expires.setDate(expires.getDate() + 7); // 7 dias
+    
+    const cookieString = `jwtToken=${token}; expires=${expires.toUTCString()}; path=/; SameSite=Lax`;
+    document.cookie = cookieString;
+    
+    console.log('📝 Cookie string:', cookieString);
+    
+    // Verificar se foi salvo
+    let savedToken = Cookies.get("jwtToken");
+    console.log('✅ Primeira verificação:', savedToken ? `${savedToken.substring(0, 20)}...` : 'FALHOU');
+    
+    // Se ainda não funcionou, tentar método ainda mais direto
+    if (!savedToken) {
+      console.log('⚠️ Método manual falhou, tentando direto no document.cookie...');
+      document.cookie = `jwtToken=${token}; path=/`;
+      
+      // Verificar via document.cookie diretamente
+      const allCookies = document.cookie;
+      const tokenMatch = allCookies.match(/jwtToken=([^;]+)/);
+      if (tokenMatch) {
+        console.log('✅ Token encontrado via document.cookie:', tokenMatch[1].substring(0, 20) + '...');
+      } else {
+        console.log('❌ Token não encontrado mesmo via document.cookie');
+        console.log('📋 Todos os cookies:', allCookies);
+      }
     }
+    
   } else {
-    // SSR fallback
+    // Para localhost, usar js-cookie normalmente
     Cookies.set("jwtToken", token, {
       expires: 7,
       path: "/",
@@ -156,17 +190,9 @@ export const saveToken = (token: string) => {
     });
   }
   
-  // Verificar se foi salvo corretamente
-  const savedToken = Cookies.get("jwtToken");
-  console.log('✅ Token salvo e verificado:', savedToken ? `${savedToken.substring(0, 20)}...` : 'FALHOU');
-  
-  // Se falhou, tentar método alternativo
-  if (!savedToken) {
-    console.log('⚠️ Primeira tentativa falhou, tentando método alternativo...');
-    Cookies.set("jwtToken", token, { expires: 7 });
-    const retryToken = Cookies.get("jwtToken");
-    console.log('🔄 Segunda tentativa:', retryToken ? `${retryToken.substring(0, 20)}...` : 'FALHOU NOVAMENTE');
-  }
+  // Verificação final
+  const finalToken = Cookies.get("jwtToken");
+  console.log('🏁 Verificação final:', finalToken ? `${finalToken.substring(0, 20)}...` : 'FALHOU');
 };
 
 // Função para remover token
@@ -190,7 +216,12 @@ export const removeToken = () => {
 // Função de debug para verificar cookies
 export const debugCookies = () => {
   console.log('🍪 Debug de Cookies:');
-  console.log('- jwtToken:', Cookies.get("jwtToken") ? `${Cookies.get("jwtToken")?.substring(0, 20)}...` : 'NENHUM');
+  
+  const robustToken = getToken();
+  const jsToken = Cookies.get("jwtToken");
+  
+  console.log('- jwtToken (js-cookie):', jsToken ? `${jsToken.substring(0, 20)}...` : 'NENHUM');
+  console.log('- jwtToken (robusto):', robustToken ? `${robustToken.substring(0, 20)}...` : 'NENHUM');
   console.log('- user:', Cookies.get("user") ? 'PRESENTE' : 'NENHUM');
   console.log('- userId:', Cookies.get("userId") || 'NENHUM');
   console.log('- USER_ROLE:', Cookies.get("USER_ROLE") || 'NENHUM');
