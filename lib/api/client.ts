@@ -121,22 +121,70 @@ export const getDecodedToken = () => {
 
 // Função para salvar token com configurações corretas
 export const saveToken = (token: string) => {
-  const options = getCookieOptions();
-  console.log('💾 Salvando token com opções:', options);
+  console.log('💾 Salvando token...');
   console.log('🌐 Hostname atual:', typeof window !== "undefined" ? window.location.hostname : 'SSR');
-  Cookies.set("jwtToken", token, options);
+  
+  // Tentar salvar de forma mais direta para rede local
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    
+    // Para rede local (IP), usar configurações mais simples
+    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+      console.log('🌐 Detectado rede local, usando configurações específicas');
+      Cookies.set("jwtToken", token, {
+        expires: 7,
+        path: "/",
+        secure: false,
+        sameSite: 'lax'
+      });
+    } else {
+      // Para localhost
+      Cookies.set("jwtToken", token, {
+        expires: 7,
+        path: "/",
+        secure: false,
+        sameSite: 'lax'
+      });
+    }
+  } else {
+    // SSR fallback
+    Cookies.set("jwtToken", token, {
+      expires: 7,
+      path: "/",
+      secure: false,
+      sameSite: 'lax'
+    });
+  }
   
   // Verificar se foi salvo corretamente
   const savedToken = Cookies.get("jwtToken");
   console.log('✅ Token salvo e verificado:', savedToken ? `${savedToken.substring(0, 20)}...` : 'FALHOU');
+  
+  // Se falhou, tentar método alternativo
+  if (!savedToken) {
+    console.log('⚠️ Primeira tentativa falhou, tentando método alternativo...');
+    Cookies.set("jwtToken", token, { expires: 7 });
+    const retryToken = Cookies.get("jwtToken");
+    console.log('🔄 Segunda tentativa:', retryToken ? `${retryToken.substring(0, 20)}...` : 'FALHOU NOVAMENTE');
+  }
 };
 
 // Função para remover token
 export const removeToken = () => {
-  const options = getCookieOptions();
-  Cookies.remove("jwtToken", options);
-  // Também tentar remover sem opções como fallback
+  console.log('🗑️ Removendo token...');
+  
+  // Tentar múltiplas formas de remover o cookie
   Cookies.remove("jwtToken");
+  Cookies.remove("jwtToken", { path: "/" });
+  
+  if (typeof window !== "undefined") {
+    // Método adicional para limpar cookie via document.cookie
+    document.cookie = "jwtToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+  }
+  
+  // Verificar se foi removido
+  const remainingToken = Cookies.get("jwtToken");
+  console.log('🗑️ Token removido:', remainingToken ? 'FALHOU' : 'SUCESSO');
 };
 
 // Função de debug para verificar cookies

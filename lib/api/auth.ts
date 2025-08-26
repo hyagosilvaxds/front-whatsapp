@@ -31,7 +31,13 @@ export async function login({ email, password }: { email: string; password: stri
         }
 
         // Salvar token e dados do usuário
+        console.log("🔄 Salvando token de acesso...");
         saveToken(access_token);
+        
+        // Verificar se o token foi salvo corretamente
+        const savedToken = Cookies.get("jwtToken");
+        console.log("✅ Verificação do token salvo:", savedToken ? `${savedToken.substring(0, 20)}...` : 'FALHOU');
+        
         Cookies.set("user", JSON.stringify(user), { expires: 7, secure: false, sameSite: 'lax' });
 
         // Decodificar token para extrair informações
